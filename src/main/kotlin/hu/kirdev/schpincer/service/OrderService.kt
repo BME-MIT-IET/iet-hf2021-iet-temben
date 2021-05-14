@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import java.io.IOException
 import java.util.*
 import javax.servlet.http.HttpServletRequest
+import kotlin.math.max
 
 private val List<OrderEntity>.highestPriority: Int
     get() = this.maxBy { it.priority }?.priority ?: 1
@@ -107,8 +108,9 @@ open class OrderService {
     @Transactional(readOnly = false)
     open fun makeOrder(request: HttpServletRequest, id: Long, itemCount: Int, time: Long, comment: String, detailsJson: String): ResponseEntity<String> {
         val user = request.getUserIfPresent() ?: return responseOf("Error 403", HttpStatus.FORBIDDEN)
-        if (user.room.isEmpty())
+        if (user.room.isEmpty()) {
             return responseOf(RESPONSE_NO_ROOM_SET)
+        }
 
         val order = OrderEntity(
                 userId = user.uid,
@@ -130,13 +132,18 @@ open class OrderService {
         if (current.orderStart > System.currentTimeMillis() || current.orderEnd < System.currentTimeMillis())
             return responseOf(RESPONSE_NO_ORDERING)
 
-        val count = Math.max(1, if (itemCount < details.minCount) {
-            details.minCount
-        } else if (itemCount > details.maxCount) {
-            details.maxCount
-        } else {
-            itemCount
-        })
+        val count = max(1, when {
+            itemCount < details.minCount -> {
+                details.minCount
+            }
+            itemCount > details.maxCount -> {
+                details.maxCount
+            }
+            else -> {
+                itemCount
+            }
+        }
+        )
 
         if (current.orderCount + count > current.maxOrder)
             return responseOf(RESPONSE_OVERALL_MAX_REACHED)
@@ -169,9 +176,6 @@ open class OrderService {
             ItemCategory.LAMBDA ->
                 if (current.usedLambda < current.maxLambda) current.usedLambda += count
                 else return responseOf(RESPONSE_CATEGORY_FULL)
-
-            ItemCategory.DEFAULT -> {
-            }
         }
 
         timewindow.normalItemCount = timewindow.normalItemCount - count
@@ -225,8 +229,6 @@ open class OrderService {
                 ItemCategory.GAMMA -> opening.usedGamma -= count
                 ItemCategory.DELTA -> opening.usedDelta -= count
                 ItemCategory.LAMBDA -> opening.usedLambda -= count
-                ItemCategory.DEFAULT -> {
-                }
             }
 
             timewindowRepo.save(timeWindow)
