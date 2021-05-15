@@ -39,9 +39,11 @@ class SzorPageTest {
     fun testCircles() {
         szorPage.circles.shouldBe(Condition.visible)
 
+        assert(szorPage.circleArticles.size > 0)
+
         szorPage.circleArticles.forEach { article ->
             article.shouldBe(Condition.visible)
-            article.`$`(".image").shouldHave(Condition.image)
+            article.`$`(".image").shouldBe(Condition.visible)
             article.`$`(".message h3").shouldBe(Condition.visible)
             article.`$`(".message p").shouldBe(Condition.visible)
         }

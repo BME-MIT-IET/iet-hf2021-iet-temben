@@ -8,5 +8,5 @@ class SzorPage {
     val url = SeleniumConfig.baseUrl + "szor"
     val imprint = element(".content").`$`(".highlighted")
     val circles = element(".circles")
-    val circleArticles = elements(".circles.article")
+    val circleArticles = elements(".article")
 }
