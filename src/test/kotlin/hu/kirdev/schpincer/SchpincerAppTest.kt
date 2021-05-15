@@ -1,18 +1,5 @@
 package hu.kirdev.schpincer
 
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-import java.lang.IllegalStateException
-
-class SchpincerAppTest {
-
-    @Test
-    fun test() {
-        assertTrue(true)
-    }
-
-}
-
 inline fun <reified T : Throwable> getException(runnable: Runnable) : T {
     try {
         runnable.run()

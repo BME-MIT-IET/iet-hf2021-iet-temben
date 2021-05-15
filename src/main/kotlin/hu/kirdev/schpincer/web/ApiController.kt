@@ -209,7 +209,14 @@ open class ApiController {
     @PostMapping("/order/delete")
     @ResponseBody
     fun deleteOrder(request: HttpServletRequest, @RequestParam(required = true) id: Long): ResponseEntity<String> {
-        return orders.cancelOrder(request, id)
+        val user = request.getUserIfPresent() ?: return responseOf("Error 403", HttpStatus.FORBIDDEN)
+        try {
+            return orders.cancelOrder(user, id)
+        } catch (e: FailedOrderException) {
+            log.warn("Failed to cancel order by '${request.getUserIfPresent()?.uid ?: "n/a"}' reason: ${e.response}")
+            return responseOf(e.response)
+        }
+
     }
 
     @GetMapping("/version")
