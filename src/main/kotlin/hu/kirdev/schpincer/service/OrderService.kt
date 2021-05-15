@@ -5,17 +5,15 @@ import hu.kirdev.schpincer.dao.OpeningRepository
 import hu.kirdev.schpincer.dao.OrderRepository
 import hu.kirdev.schpincer.dao.TimeWindowRepository
 import hu.kirdev.schpincer.model.*
-import hu.kirdev.schpincer.web.getUserId
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
-import javax.servlet.http.HttpServletRequest
 
 private val List<OrderEntity>.highestPriority: Int
-    get() = this.maxBy { it.priority }?.priority ?: 1
+    get() = this.maxByOrNull { it.priority }?.priority ?: 1
 
 enum class OrderStrategy(val representation: String) {
     ORDER_ABSOLUTE("absolute"),
@@ -48,7 +46,7 @@ open class OrderService {
     internal lateinit var openings: OpeningService
 
     @Autowired
-    internal lateinit var timewindowRepo: TimeWindowRepository
+    internal lateinit var timeWindowRepo: TimeWindowRepository
 
     @Autowired
     internal lateinit var itemsRepo: ItemRepository
@@ -101,55 +99,27 @@ open class OrderService {
         val procedure = MakeOrderProcedure(user, id, itemCount, time, comment, detailsJson,
                 itemsRepo = itemsRepo,
                 openings = openings,
-                timeWindowRepo = timewindowRepo)
+                timeWindowRepo = timeWindowRepo)
         procedure.makeOrder()
 
-        timewindowRepo.save(procedure.timeWindow)
+        timeWindowRepo.save(procedure.timeWindow)
         openings.save(procedure.current)
         this.save(procedure.order)
         return responseOf(RESPONSE_ACK)
     }
 
     @Transactional(readOnly = false)
-    open fun cancelOrder(request: HttpServletRequest, id: Long): ResponseEntity<String> {
-        return try {
-            val order = getOne(id)
-            if (order!!.userId != request.getUserId())
-                return responseOf(RESPONSE_BAD_REQUEST, HttpStatus.BAD_REQUEST)
+    open fun cancelOrder(user: UserEntity, id: Long): ResponseEntity<String> {
+        val procedure = CancelOrderProcedure(user, id,
+                orderRepository = repo,
+                openings = openings,
+                timeWindowRepo = timeWindowRepo)
+        procedure.cancelOrder()
 
-            if (order.status !== OrderStatus.ACCEPTED)
-                return responseOf(RESPONSE_INVALID_STATUS)
-
-            val opening = openings.getOne(order.openingId!!)
-            if (opening.orderEnd <= System.currentTimeMillis())
-                return responseOf(RESPONSE_ORDER_PERIOD_ENDED)
-
-            order.status = OrderStatus.CANCELLED
-            val count = order.count
-            val timeWindow = timewindowRepo.getOne(order.intervalId)
-            timeWindow.normalItemCount = timeWindow.normalItemCount + count
-
-            if (order.extraTag)
-                timeWindow.extraItemCount = timeWindow.extraItemCount + count
-            opening.orderCount -= count
-
-            when (ItemCategory.of(order.category)) {
-                ItemCategory.ALPHA -> opening.usedAlpha -= count
-                ItemCategory.BETA -> opening.usedBeta -= count
-                ItemCategory.GAMMA -> opening.usedGamma -= count
-                ItemCategory.DELTA -> opening.usedDelta -= count
-                ItemCategory.LAMBDA -> opening.usedLambda -= count
-                ItemCategory.DEFAULT -> {
-                }
-            }
-
-            timewindowRepo.save(timeWindow)
-            openings.save(opening)
-            save(order)
-            responseOf(RESPONSE_ACK)
-        } catch (e: Exception) {
-            responseOf(RESPONSE_BAD_REQUEST, HttpStatus.BAD_REQUEST)
-        }
+        timeWindowRepo.save(procedure.timeWindow)
+        openings.save(procedure.opening)
+        this.save(procedure.order)
+        return responseOf(RESPONSE_ACK)
     }
 
     open fun findToExport(openingId: Long, orderBy: String): List<OrderEntity> {

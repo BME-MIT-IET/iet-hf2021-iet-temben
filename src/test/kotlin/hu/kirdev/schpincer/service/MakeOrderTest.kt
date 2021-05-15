@@ -31,7 +31,7 @@ class MakeOrderTest {
     @Mock
     lateinit var user: UserEntity
 
-    val usedPerCategory = arrayOf(
+    private val usedPerCategory = arrayOf(
             arrayOf(1, 0, 0, 0, 0),
             arrayOf(0, 1, 0, 0, 0),
             arrayOf(0, 0, 1, 0, 0),
@@ -39,7 +39,7 @@ class MakeOrderTest {
             arrayOf(0, 0, 0, 0, 1)
     )
 
-    val availablePerCategory = arrayOf(
+    private val availablePerCategory = arrayOf(
             arrayOf(3, 0, 0, 0, 0),
             arrayOf(0, 3, 0, 0, 0),
             arrayOf(0, 0, 3, 0, 0),
