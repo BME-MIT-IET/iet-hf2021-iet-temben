@@ -4,21 +4,15 @@ import hu.kirdev.schpincer.dao.ItemRepository
 import hu.kirdev.schpincer.dao.OpeningRepository
 import hu.kirdev.schpincer.dao.OrderRepository
 import hu.kirdev.schpincer.dao.TimeWindowRepository
-import hu.kirdev.schpincer.dto.OrderDetailsDto
 import hu.kirdev.schpincer.model.*
-import hu.kirdev.schpincer.web.component.calculateExtra
 import hu.kirdev.schpincer.web.getUserId
-import hu.kirdev.schpincer.web.getUserIfPresent
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.RequestParam
-import java.io.IOException
 import java.util.*
 import javax.servlet.http.HttpServletRequest
-import kotlin.math.max
 
 private val List<OrderEntity>.highestPriority: Int
     get() = this.maxBy { it.priority }?.priority ?: 1
@@ -45,19 +39,19 @@ const val RESPONSE_ORDER_PERIOD_ENDED = "ORDER_PERIOD_ENDED"
 open class OrderService {
 
     @Autowired
-    private lateinit var repo: OrderRepository
+    internal lateinit var repo: OrderRepository
 
     @Autowired
-    private lateinit var openingRepo: OpeningRepository
+    internal lateinit var openingRepo: OpeningRepository
 
     @Autowired
-    private lateinit var openings: OpeningService
+    internal lateinit var openings: OpeningService
 
     @Autowired
-    private lateinit var timewindowRepo: TimeWindowRepository
+    internal lateinit var timewindowRepo: TimeWindowRepository
 
     @Autowired
-    private lateinit var itemsRepo: ItemRepository
+    internal lateinit var itemsRepo: ItemRepository
 
     @Transactional
     open fun save(order: OrderEntity) {
@@ -102,101 +96,17 @@ open class OrderService {
         save(order)
     }
 
-    /**
-     * TODO: Refactor: Make it to more smaller functions
-     */
     @Transactional(readOnly = false)
-    open fun makeOrder(request: HttpServletRequest, id: Long, itemCount: Int, time: Long, comment: String, detailsJson: String): ResponseEntity<String> {
-        val user = request.getUserIfPresent() ?: return responseOf("Error 403", HttpStatus.FORBIDDEN)
-        if (user.room.isEmpty()) {
-            return responseOf(RESPONSE_NO_ROOM_SET)
-        }
+    open fun makeOrder(user: UserEntity, id: Long, itemCount: Int, time: Long, comment: String, detailsJson: String): ResponseEntity<String> {
+        val procedure = MakeOrderProcedure(user, id, itemCount, time, comment, detailsJson,
+                itemsRepo = itemsRepo,
+                openings = openings,
+                timeWindowRepo = timewindowRepo)
+        procedure.makeOrder()
 
-        val order = OrderEntity(
-                userId = user.uid,
-                userName = user.name,
-                comment = "[${user.cardType.name}] $comment",
-                detailsJson = detailsJson,
-                room = user.room)
-
-        order.intervalId = time
-        val item: ItemEntity = itemsRepo.getOne(id)
-        if (!item.orderable || item.personallyOrderable)
-            return responseOf(RESPONSE_INTERNAL_ERROR)
-        order.name = item.name
-
-        val details: OrderDetailsDto = calculateExtra(detailsJson, order, item)
-        order.openingId = openings.findNextOf(item.circle?.id!!)?.id!!
-        val current = openings.findNextOf(item.circle?.id!!) ?: return responseOf(RESPONSE_INTERNAL_ERROR)
-
-        if (current.orderStart > System.currentTimeMillis() || current.orderEnd < System.currentTimeMillis())
-            return responseOf(RESPONSE_NO_ORDERING)
-
-        val count = max(1, when {
-            itemCount < details.minCount -> {
-                details.minCount
-            }
-            itemCount > details.maxCount -> {
-                details.maxCount
-            }
-            else -> {
-                itemCount
-            }
-        }
-        )
-
-        if (current.orderCount + count > current.maxOrder)
-            return responseOf(RESPONSE_OVERALL_MAX_REACHED)
-
-        val timewindow: TimeWindowEntity = timewindowRepo.getOne(time)
-        if (!timewindow.opening?.id!!.equals(current.id))
-            return responseOf(RESPONSE_INTERNAL_ERROR)
-        if (timewindow.normalItemCount - count < 0)
-            return responseOf(RESPONSE_MAX_REACHED)
-        if (order.extraTag && timewindow.extraItemCount - count < 0)
-            return responseOf(RESPONSE_MAX_REACHED_EXTRA)
-
-        when (ItemCategory.of(item.category)) {
-            ItemCategory.ALPHA ->
-                if (current.usedAlpha < current.maxAlpha) current.usedAlpha += count
-                else return responseOf(RESPONSE_CATEGORY_FULL)
-
-            ItemCategory.BETA ->
-                if (current.usedBeta < current.maxBeta) current.usedBeta += count
-                else return responseOf(RESPONSE_CATEGORY_FULL)
-
-            ItemCategory.GAMMA ->
-                if (current.usedGamma < current.maxGamma) current.usedGamma += count
-                else return responseOf(RESPONSE_CATEGORY_FULL)
-
-            ItemCategory.DELTA ->
-                if (current.usedDelta < current.maxDelta) current.usedDelta += count
-                else return responseOf(RESPONSE_CATEGORY_FULL)
-
-            ItemCategory.LAMBDA ->
-                if (current.usedLambda < current.maxLambda) current.usedLambda += count
-                else return responseOf(RESPONSE_CATEGORY_FULL)
-        }
-
-        timewindow.normalItemCount = timewindow.normalItemCount - count
-        if (order.extraTag)
-            timewindow.extraItemCount = timewindow.extraItemCount - count
-
-        current.orderCount = current.orderCount + count
-        with(order) {
-            date = timewindow.date
-            price = order.price * count
-            intervalMessage = timewindow.name
-            cancelUntil = current.orderEnd
-            category = item.category
-            priority = user.orderingPriority
-            compactName = (if (item.alias.isEmpty()) item.name else item.alias) + (if (count == 1) "" else " x $count")
-            order.count = count
-        }
-        timewindowRepo.save(timewindow)
-        openings.save(current)
-
-        save(order)
+        timewindowRepo.save(procedure.timeWindow)
+        openings.save(procedure.current)
+        this.save(procedure.order)
         return responseOf(RESPONSE_ACK)
     }
 
@@ -229,6 +139,8 @@ open class OrderService {
                 ItemCategory.GAMMA -> opening.usedGamma -= count
                 ItemCategory.DELTA -> opening.usedDelta -= count
                 ItemCategory.LAMBDA -> opening.usedLambda -= count
+                ItemCategory.DEFAULT -> {
+                }
             }
 
             timewindowRepo.save(timeWindow)
@@ -272,6 +184,6 @@ open class OrderService {
         return source
     }
 
-    private fun responseOf(body: String, status: HttpStatus = HttpStatus.OK) = ResponseEntity(body, status)
-
 }
+
+fun responseOf(body: String, status: HttpStatus = HttpStatus.OK) = ResponseEntity(body, status)
