@@ -19,3 +19,8 @@ src/main/resources/static/image/gm_szoporoller.jpg
 graphics/
 *.iml
 
+# Selenium ui tests
+!ui-tests/src/test
+ui-tests/allure-results
+ui-tests/build
+
