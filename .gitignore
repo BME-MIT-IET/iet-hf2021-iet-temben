@@ -23,4 +23,5 @@ graphics/
 !ui-tests/src/test
 ui-tests/allure-results
 ui-tests/build
+ui-tests/src/test/kotlin/hu/kirdev/schpincer/ui_tests/config/SeleniumConfig.kt
 
