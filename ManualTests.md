@@ -62,8 +62,8 @@ Teszt végrehajtás:
 
 - Kijelentkezés: A felhasználói profilra navigálva a megnyomjuk a kijelentkezés gombot.
 
-| Teszt | Teszt Adatok | Elvárt eredmény |Eredmény | Siker/Hiba
-| ----- | ----------- | ------ | ---- | ---- |
+| Teszt | Elvárt eredmény |Eredmény | Siker/Hiba
+| ----- | ----------- | ------ | ---- |
 | Bejelentkezés | A felhasználó bejelentkezése sikeres a menüben a bejelentkezés felirat helyett a neve látszik, amire kattintva a profiljára tud navigálni. | A felhasználó bejelentkezése sikeres megtörtént a menüben a bejelentkezés felirat helyett a neve látszott, amire kattintva a profiljára tudtunk navigálni.  | :heavy_check_mark: |
 | Kijelentkezés | A kijelentkezés gombot megnyomva a rendszer kiléptette a felhasználót a menüben újra a bejelentkezés felirat látható. | A kijelentkezés gombot megnyomva a rendszer kiléptette a felhasználót a menüben újra a bejelentkezés felirat volt látható. | :heavy_check_mark: |
 
