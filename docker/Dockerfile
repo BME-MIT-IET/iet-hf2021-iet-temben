@@ -1,5 +1,5 @@
 FROM adoptopenjdk/openjdk9:x86_64-alpine-jdk-9.0.4.11 AS build  
-COPY src /usr/src/app/src  
+COPY src /usr/src/app/src
 COPY pom.xml /usr/src/app  
 COPY .mvn /usr/src/app/.mvn  
 COPY mvnw /usr/src/app/  
